@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import shutil
 import sys
 import time
 import uuid
@@ -450,13 +451,15 @@ class MotionStreamerExportFBX:
         if not ok:
             raise RuntimeError(f"FBX export failed — output not found at {fbx_p}")
 
-        # Remove any texture sidecar PNG the FBX SDK may drop alongside the output
-        for sidecar in [fbx_p.with_suffix(".fbx.png"), Path(str(fbx_p) + ".png")]:
-            if sidecar.exists():
-                try:
-                    sidecar.unlink()
-                except OSError:
-                    pass
+        # Safety-net: remove any sidecar files that may appear next to the output FBX
+        for _p in (Path(str(fbx_p) + ".png"), fbx_p.parent / (fbx_p.stem + ".fbm")):
+            try:
+                if _p.is_dir():
+                    shutil.rmtree(_p, ignore_errors=True)
+                elif _p.exists():
+                    _p.unlink()
+            except OSError:
+                pass
 
         print(f"[MotionStreamer] Exported FBX: {fbx_p}")
         return (str(fbx_p),)

@@ -14,13 +14,11 @@ const VIEWER_HTML = `<!DOCTYPE html>
   button.active { background: #2a52a0; color: #fff; border-color: #5080dd; }
   input[type=range] { flex: 1; accent-color: #5080dd; }
   #status { position: absolute; top: 8px; left: 10px; color: #778; pointer-events: none; max-width: 80%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #hint { position: absolute; bottom: 40px; right: 10px; color: #445; font-size: 10px; pointer-events: none; }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div id="status">Waiting for motion data…</div>
-<div id="hint">drag to rotate · scroll to zoom</div>
 <div id="controls">
   <button id="btnPlay">▶ Play</button>
   <button id="btnFollow">⊙ Follow</button>
@@ -62,7 +60,34 @@ function computeNorm() {
   }
   const range = Math.max(maxX-minX, maxY-minY, maxZ-minZ, 0.01);
   const [rx0, , rz0] = getJoint(0, 0);
-  return { cx: rx0, cy: (minY+maxY)/2, cz: rz0, scale: 1/range };
+  return { cx: rx0, cy: (minY+maxY)/2, cz: rz0, scale: 1/range, floorY: minY };
+}
+
+function drawGrid() {
+  if (!norm) return;
+  const { floorY, scale, cx: baseCX, cz: baseCZ } = norm;
+  let gcx = baseCX, gcz = baseCZ;
+  if (followMode && numFrames > 0) {
+    const root = getJoint(Math.floor(currentFrame) % numFrames, 0);
+    gcx = root[0]; gcz = root[2];
+  }
+  const step = 0.3 / scale;
+  const n = 7;
+  const half = n * step;
+  ctx.save();
+  ctx.strokeStyle = '#252840';
+  ctx.lineWidth = 0.8;
+  for (let i = -n; i <= n; i++) {
+    const x = gcx + i * step;
+    const z = gcz + i * step;
+    const [ax0, ay0] = project(x, floorY, gcz - half);
+    const [ax1, ay1] = project(x, floorY, gcz + half);
+    ctx.beginPath(); ctx.moveTo(ax0, ay0); ctx.lineTo(ax1, ay1); ctx.stroke();
+    const [bx0, by0] = project(gcx - half, floorY, z);
+    const [bx1, by1] = project(gcx + half, floorY, z);
+    ctx.beginPath(); ctx.moveTo(bx0, by0); ctx.lineTo(bx1, by1); ctx.stroke();
+  }
+  ctx.restore();
 }
 
 // Set zoom so the character fills ~75% of the viewport at the current rotation.
@@ -109,6 +134,7 @@ function project(x, y, z) {
 function render() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (!xyz || !norm) return;
+  drawGrid();
   const f = Math.floor(currentFrame) % numFrames;
   const pts = [];
   for (let j = 0; j < numJoints; j++) pts.push(project(...getJoint(f, j)));

@@ -144,12 +144,12 @@ def write_fbx_with_character(
         if not root_applied:
             print("[MotionStreamer FBX] Warning: Pelvis joint not found in template — no root translation applied")
 
-        # Export to temp then move to final path
+        # Export into an isolated temp directory so the SDK can create whatever
+        # sidecar files it likes (e.g. .fbm folders, .png textures) — the whole
+        # directory is discarded after we copy just the .fbx out.
         os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
-        with tempfile.NamedTemporaryFile(suffix=".fbx", delete=False) as f:
-            tmp = f.name
-
-        try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = os.path.join(tmpdir, "export.fbx")
             ios.SetBoolProp(fbx.EXP_FBX_EMBEDDED, True)
             ios.SetBoolProp(fbx.EXP_FBX_MATERIAL, True)
             ios.SetBoolProp(fbx.EXP_FBX_TEXTURE, True)
@@ -159,12 +159,7 @@ def write_fbx_with_character(
             exp.Export(scene)
             exp.Destroy()
             shutil.copy2(tmp, save_path)
-        finally:
-            for _f in [tmp, tmp + ".png", tmp.replace(".fbx", ".fbx.png")]:
-                try:
-                    os.remove(_f)
-                except OSError:
-                    pass
+            # tmpdir and all its contents (sidecars, .fbm dirs) are removed on exit
 
     finally:
         manager.Destroy()
