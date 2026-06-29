@@ -21,7 +21,7 @@ const VIEWER_HTML = `<!DOCTYPE html>
 <div id="status">Waiting for motion data…</div>
 <div id="controls">
   <button id="btnPlay">▶ Play</button>
-  <button id="btnFollow">⊙ Follow</button>
+  <button id="btnFollow">⊙ Stay</button>
   <input type="range" id="scrubber" min="0" max="100" value="0">
   <span id="frameLabel" style="white-space:nowrap;min-width:60px;text-align:right">0 / 0</span>
 </div>
