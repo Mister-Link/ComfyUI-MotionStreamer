@@ -37,7 +37,8 @@ const statusEl = document.getElementById('status');
 let xyz = null, bones = [], numFrames = 0, numJoints = 22, fps = 30;
 let currentFrame = 0, playing = false, animId = null, lastTime = 0;
 let rotY = 0.4, rotX = -0.15, zoom = 1.0;
-let dragging = false, lastMX = 0, lastMY = 0;
+let dragging = false, lastMX = 0, lastMY = 0, dragIsPan = false;
+let panX = 0, panY = 0;
 let norm = null;
 let followMode = false;
 
@@ -128,7 +129,7 @@ function project(x, y, z) {
   const rz2 = py*sinX + rz*cosX;
   const fov = Math.min(canvas.width, canvas.height) * 0.55 * zoom;
   const camZ = rz2 + 2.5;
-  return [rx/camZ*fov + canvas.width/2, -ry/camZ*fov + canvas.height/2];
+  return [rx/camZ*fov + canvas.width/2 + panX, -ry/camZ*fov + canvas.height/2 + panY];
 }
 
 function render() {
@@ -190,11 +191,20 @@ scrubber.addEventListener('input', () => {
   render();
 });
 
-canvas.addEventListener('mousedown', e => { dragging = true; lastMX = e.clientX; lastMY = e.clientY; canvas.classList.add('dragging'); });
+canvas.addEventListener('mousedown', e => {
+  dragging = true; dragIsPan = e.shiftKey;
+  lastMX = e.clientX; lastMY = e.clientY;
+  canvas.classList.add('dragging');
+});
 window.addEventListener('mousemove', e => {
   if (!dragging) return;
-  rotY += (e.clientX - lastMX) * 0.012;
-  rotX = Math.max(-1.4, Math.min(1.4, rotX - (e.clientY - lastMY) * 0.012));
+  const dx = e.clientX - lastMX, dy = e.clientY - lastMY;
+  if (dragIsPan) {
+    panX += dx; panY += dy;
+  } else {
+    rotY += dx * 0.012;
+    rotX = Math.max(-1.4, Math.min(1.4, rotX - dy * 0.012));
+  }
   lastMX = e.clientX; lastMY = e.clientY;
   render();
 });
@@ -214,6 +224,7 @@ window.addEventListener('message', e => {
     fps = d.fps || 30;
     bones = d.bones || [];
     currentFrame = 0;
+    panX = 0; panY = 0;
     norm = computeNorm();
     autoFrame();
     setFollow(false);
