@@ -8,29 +8,20 @@ const VIEWER_HTML = `<!DOCTYPE html>
   body { background: #16182a; color: #ccc; font: 12px monospace; overflow: hidden; display: flex; flex-direction: column; height: 100vh; user-select: none; }
   canvas { flex: 1; display: block; cursor: grab; min-height: 0; }
   canvas.dragging { cursor: grabbing; }
-  #controls { padding: 6px 10px; background: #1e2030; display: flex; align-items: center; gap: 8px; flex-shrink: 0; border-top: 1px solid #2a2d42; position: relative; }
+  #controls { padding: 6px 10px; background: #1e2030; display: flex; align-items: center; gap: 8px; flex-shrink: 0; border-top: 1px solid #2a2d42; }
   button { background: #2a2d42; color: #ccc; border: 1px solid #444; padding: 3px 10px; cursor: pointer; border-radius: 3px; font: 12px monospace; }
   button:hover { background: #3a3d52; }
   button.active { background: #2a52a0; color: #fff; border-color: #5080dd; }
   input[type=range] { flex: 1; accent-color: #5080dd; }
   #status { position: absolute; top: 8px; left: 10px; color: #778; pointer-events: none; max-width: 80%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #bonesPanel { display: none; position: absolute; bottom: calc(100% + 4px); left: 10px; background: #1e2030; border: 1px solid #2a2d42; border-radius: 4px; padding: 8px 12px; flex-direction: column; gap: 6px; z-index: 10; white-space: nowrap; }
-  #bonesPanel.open { display: flex; }
-  #bonesPanel label { display: flex; align-items: center; gap: 7px; cursor: pointer; color: #ccc; }
-  #bonesPanel input[type=checkbox] { accent-color: #5080dd; cursor: pointer; }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div id="status">Waiting for motion data…</div>
 <div id="controls">
-  <div id="bonesPanel">
-    <label><input type="checkbox" id="chkFace" checked> Face</label>
-    <label><input type="checkbox" id="chkHead" checked> Head</label>
-  </div>
   <button id="btnPlay">▶ Play</button>
   <button id="btnFollow">⊙ Follow</button>
-  <button id="btnBones">Bones…</button>
   <input type="range" id="scrubber" min="0" max="100" value="0">
   <span id="frameLabel" style="white-space:nowrap;min-width:60px;text-align:right">0 / 0</span>
 </div>
@@ -41,13 +32,7 @@ const scrubber = document.getElementById('scrubber');
 const frameLabel = document.getElementById('frameLabel');
 const btnPlay = document.getElementById('btnPlay');
 const btnFollow = document.getElementById('btnFollow');
-const btnBones = document.getElementById('btnBones');
-const bonesPanel = document.getElementById('bonesPanel');
-const chkFace = document.getElementById('chkFace');
-const chkHead = document.getElementById('chkHead');
 const statusEl = document.getElementById('status');
-
-let showFace = true, showHead = true;
 
 let xyz = null, bones = [], numFrames = 0, numJoints = 22, fps = 30;
 let currentFrame = 0, playing = false, animId = null, lastTime = 0;
@@ -159,17 +144,13 @@ function render() {
   ctx.strokeStyle = '#4a70cc';
   for (const [a, b] of bones) {
     if (a >= pts.length || b >= pts.length) continue;
-    // Head bone: Neck(12) → Head(15)
-    if (!showHead && ((a === 12 && b === 15) || (a === 15 && b === 12))) continue;
     ctx.beginPath();
     ctx.moveTo(pts[a][0], pts[a][1]);
     ctx.lineTo(pts[b][0], pts[b][1]);
     ctx.stroke();
   }
 
-  for (let j = 0; j < pts.length; j++) {
-    if (!showFace && j === 15) continue; // Head joint dot
-    const [sx, sy] = pts[j];
+  for (const [sx, sy] of pts) {
     ctx.beginPath();
     ctx.arc(sx, sy, 3.5, 0, Math.PI*2);
     ctx.fillStyle = '#ccd';
@@ -209,12 +190,6 @@ function setFollow(v) {
 
 btnPlay.addEventListener('click', () => setPlaying(!playing));
 btnFollow.addEventListener('click', () => setFollow(!followMode));
-btnBones.addEventListener('click', () => {
-  const open = bonesPanel.classList.toggle('open');
-  btnBones.classList.toggle('active', open);
-});
-chkFace.addEventListener('change', () => { showFace = chkFace.checked; render(); });
-chkHead.addEventListener('change', () => { showHead = chkHead.checked; render(); });
 scrubber.addEventListener('input', () => {
   currentFrame = +scrubber.value;
   frameLabel.textContent = Math.floor(currentFrame) + ' / ' + numFrames;
