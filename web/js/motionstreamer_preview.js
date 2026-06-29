@@ -178,6 +178,11 @@ function setPlaying(v) {
 }
 
 function setFollow(v) {
+  if (!v && followMode && norm && numFrames > 0) {
+    const root = getJoint(Math.floor(currentFrame) % numFrames, 0);
+    norm.cx = root[0];
+    norm.cz = root[2];
+  }
   followMode = v;
   btnFollow.classList.toggle('active', v);
   render();
