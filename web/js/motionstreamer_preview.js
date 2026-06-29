@@ -81,12 +81,10 @@ function drawGrid() {
   for (let i = -n; i <= n; i++) {
     const x = gcx + i * step;
     const z = gcz + i * step;
-    const [ax0, ay0] = project(x, floorY, gcz - half);
-    const [ax1, ay1] = project(x, floorY, gcz + half);
-    ctx.beginPath(); ctx.moveTo(ax0, ay0); ctx.lineTo(ax1, ay1); ctx.stroke();
-    const [bx0, by0] = project(gcx - half, floorY, z);
-    const [bx1, by1] = project(gcx + half, floorY, z);
-    ctx.beginPath(); ctx.moveTo(bx0, by0); ctx.lineTo(bx1, by1); ctx.stroke();
+    const la = projectLine(x, floorY, gcz - half, x, floorY, gcz + half);
+    if (la) { ctx.beginPath(); ctx.moveTo(la[0][0], la[0][1]); ctx.lineTo(la[1][0], la[1][1]); ctx.stroke(); }
+    const lb = projectLine(gcx - half, floorY, z, gcx + half, floorY, z);
+    if (lb) { ctx.beginPath(); ctx.moveTo(lb[0][0], lb[0][1]); ctx.lineTo(lb[1][0], lb[1][1]); ctx.stroke(); }
   }
   ctx.restore();
 }
@@ -98,7 +96,9 @@ function autoFrame() {
   zoom = 1.0;
   let minSX=Infinity, maxSX=-Infinity, minSY=Infinity, maxSY=-Infinity;
   for (let j = 0; j < numJoints; j++) {
-    const [sx, sy] = project(...getJoint(0, j));
+    const p = project(...getJoint(0, j));
+    if (!p) continue;
+    const [sx, sy] = p;
     if (sx < minSX) minSX=sx; if (sx > maxSX) maxSX=sx;
     if (sy < minSY) minSY=sy; if (sy > maxSY) maxSY=sy;
   }
@@ -112,12 +112,14 @@ function getJoint(frame, joint) {
   return [xyz[i], xyz[i+1], xyz[i+2]];
 }
 
-function project(x, y, z) {
+const NEAR = 0.1;
+
+function toViewSpace(x, y, z) {
   const { scale, cx: baseCX, cy, cz: baseCZ } = norm;
   let cx = baseCX, cz = baseCZ;
   if (followMode) {
     const f = Math.floor(currentFrame) % numFrames;
-    const root = getJoint(f, 0); // Pelvis
+    const root = getJoint(f, 0);
     cx = root[0]; cz = root[2];
   }
   let px = (x-cx)*scale, py = (y-cy)*scale, pz = (z-cz)*scale;
@@ -127,9 +129,34 @@ function project(x, y, z) {
   const cosX = Math.cos(rotX), sinX = Math.sin(rotX);
   const ry = py*cosX - rz*sinX;
   const rz2 = py*sinX + rz*cosX;
+  return { rx, ry, camZ: rz2 + 2.5 };
+}
+
+function screenFromView(v) {
   const fov = Math.min(canvas.width, canvas.height) * 0.55 * zoom;
-  const camZ = rz2 + 2.5;
-  return [rx/camZ*fov + canvas.width/2 + panX, -ry/camZ*fov + canvas.height/2 + panY];
+  return [v.rx/v.camZ*fov + canvas.width/2 + panX, -v.ry/v.camZ*fov + canvas.height/2 + panY];
+}
+
+// Returns screen [x,y] or null if behind near plane.
+function project(x, y, z) {
+  const v = toViewSpace(x, y, z);
+  if (v.camZ < NEAR) return null;
+  return screenFromView(v);
+}
+
+// Returns [[x0,y0],[x1,y1]] with near-plane clipping, or null if fully behind.
+function projectLine(x1, y1, z1, x2, y2, z2) {
+  let v1 = toViewSpace(x1, y1, z1);
+  let v2 = toViewSpace(x2, y2, z2);
+  if (v1.camZ < NEAR && v2.camZ < NEAR) return null;
+  if (v1.camZ < NEAR) {
+    const t = (NEAR - v1.camZ) / (v2.camZ - v1.camZ);
+    v1 = { rx: v1.rx + t*(v2.rx-v1.rx), ry: v1.ry + t*(v2.ry-v1.ry), camZ: NEAR };
+  } else if (v2.camZ < NEAR) {
+    const t = (NEAR - v2.camZ) / (v1.camZ - v2.camZ);
+    v2 = { rx: v2.rx + t*(v1.rx-v2.rx), ry: v2.ry + t*(v1.ry-v2.ry), camZ: NEAR };
+  }
+  return [screenFromView(v1), screenFromView(v2)];
 }
 
 function render() {
@@ -144,13 +171,20 @@ function render() {
   ctx.strokeStyle = '#4a70cc';
   for (const [a, b] of bones) {
     if (a >= pts.length || b >= pts.length) continue;
-    ctx.beginPath();
-    ctx.moveTo(pts[a][0], pts[a][1]);
-    ctx.lineTo(pts[b][0], pts[b][1]);
-    ctx.stroke();
+    const pa = pts[a], pb = pts[b];
+    if (pa && pb) {
+      ctx.beginPath(); ctx.moveTo(pa[0], pa[1]); ctx.lineTo(pb[0], pb[1]); ctx.stroke();
+    } else if (!pa || !pb) {
+      // One endpoint behind camera — clip to near plane
+      const [ja, jb] = [getJoint(f, a), getJoint(f, b)];
+      const line = projectLine(...ja, ...jb);
+      if (line) { ctx.beginPath(); ctx.moveTo(line[0][0], line[0][1]); ctx.lineTo(line[1][0], line[1][1]); ctx.stroke(); }
+    }
   }
 
-  for (const [sx, sy] of pts) {
+  for (let j = 0; j < pts.length; j++) {
+    if (!pts[j]) continue;
+    const [sx, sy] = pts[j];
     ctx.beginPath();
     ctx.arc(sx, sy, 3.5, 0, Math.PI*2);
     ctx.fillStyle = '#ccd';
