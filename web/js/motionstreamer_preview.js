@@ -45,6 +45,8 @@ let gizmoHovered = false;
 let lerpAnimId = null;
 let lerpFromY = 0, lerpFromX = 0, lerpToY = 0, lerpToX = 0, lerpStartTime = null;
 const LERP_DUR = 350;
+let velY = 0, velX = 0, velPanX = 0, velPanY = 0;
+let momentumId = null;
 
 function resize() {
   canvas.width = canvas.clientWidth || 512;
@@ -246,10 +248,26 @@ function animateLerp(ts) {
 
 function startLerp(toY, toX) {
   if (lerpAnimId) cancelAnimationFrame(lerpAnimId);
+  if (momentumId) { cancelAnimationFrame(momentumId); momentumId = null; }
   lerpFromY = rotY; lerpFromX = rotX;
   lerpToY = toY; lerpToX = toX;
   lerpStartTime = null;
   lerpAnimId = requestAnimationFrame(animateLerp);
+}
+
+const FRICTION = 0.85;
+function momentumStep() {
+  velY *= FRICTION; velX *= FRICTION;
+  velPanX *= FRICTION; velPanY *= FRICTION;
+  if (Math.abs(velY) + Math.abs(velX) + Math.abs(velPanX) + Math.abs(velPanY) < 0.0003) {
+    momentumId = null; return;
+  }
+  rotY += velY;
+  rotX = Math.max(-1.4, Math.min(1.4, rotX + velX));
+  panX += velPanX;
+  panY += velPanY;
+  render();
+  momentumId = requestAnimationFrame(momentumStep);
 }
 
 function render() {
@@ -329,12 +347,12 @@ canvas.addEventListener('mousedown', e => {
       const opp = GIZMO_AXES.find(a => a.id === oppId);
       startLerp(opp.snapY, opp.snapX);
     } else {
-      rotY = hit.snapY;
-      rotX = hit.snapX;
-      render();
+      startLerp(hit.snapY, hit.snapX);
     }
     return;
   }
+  if (momentumId) { cancelAnimationFrame(momentumId); momentumId = null; }
+  velY = 0; velX = 0; velPanX = 0; velPanY = 0;
   dragging = true; dragIsPan = e.shiftKey;
   lastMX = e.clientX; lastMY = e.clientY;
   canvas.classList.add('dragging');
@@ -356,14 +374,22 @@ window.addEventListener('mousemove', e => {
   const dx = e.clientX - lastMX, dy = e.clientY - lastMY;
   if (dragIsPan) {
     panX += dx; panY += dy;
+    velPanX = dx; velPanY = dy; velY = 0; velX = 0;
   } else {
     rotY += dx * 0.012;
     rotX = Math.max(-1.4, Math.min(1.4, rotX - dy * 0.012));
+    velY = dx * 0.012; velX = -dy * 0.012; velPanX = 0; velPanY = 0;
   }
   lastMX = e.clientX; lastMY = e.clientY;
   render();
 });
-window.addEventListener('mouseup', () => { dragging = false; canvas.classList.remove('dragging'); });
+window.addEventListener('mouseup', () => {
+  dragging = false;
+  canvas.classList.remove('dragging');
+  if (Math.abs(velY) + Math.abs(velX) + Math.abs(velPanX) + Math.abs(velPanY) > 0.0003) {
+    if (!momentumId) momentumId = requestAnimationFrame(momentumStep);
+  }
+});
 canvas.addEventListener('wheel', e => {
   e.preventDefault();
   zoom = Math.max(0.2, Math.min(8.0, zoom * (e.deltaY < 0 ? 1.1 : 0.9)));
