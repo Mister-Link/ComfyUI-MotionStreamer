@@ -1,4 +1,5 @@
 import { app } from "../../../../scripts/app.js";
+import { api } from "../../../../scripts/api.js";
 
 const VIEWER_HTML = `<!DOCTYPE html>
 <html>
@@ -47,6 +48,7 @@ let lerpFromY = 0, lerpFromX = 0, lerpToY = 0, lerpToX = 0, lerpStartTime = null
 const LERP_DUR = 350;
 let velY = 0, velX = 0, velPanX = 0, velPanY = 0;
 let momentumId = null;
+let dragFrames = 0;
 
 function resize() {
   canvas.width = canvas.clientWidth || 512;
@@ -353,7 +355,7 @@ canvas.addEventListener('mousedown', e => {
   }
   if (momentumId) { cancelAnimationFrame(momentumId); momentumId = null; }
   velY = 0; velX = 0; velPanX = 0; velPanY = 0;
-  dragging = true; dragIsPan = e.shiftKey;
+  dragging = true; dragIsPan = e.shiftKey; dragFrames = 0;
   lastMX = e.clientX; lastMY = e.clientY;
   canvas.classList.add('dragging');
 });
@@ -372,13 +374,16 @@ window.addEventListener('mousemove', e => {
     return;
   }
   const dx = e.clientX - lastMX, dy = e.clientY - lastMY;
+  const ease = Math.min(1, ++dragFrames / 6);
   if (dragIsPan) {
-    panX += dx; panY += dy;
-    velPanX = dx; velPanY = dy; velY = 0; velX = 0;
+    const pdx = dx * ease, pdy = dy * ease;
+    panX += pdx; panY += pdy;
+    velPanX = pdx; velPanY = pdy; velY = 0; velX = 0;
   } else {
-    rotY += dx * 0.012;
-    rotX = Math.max(-1.4, Math.min(1.4, rotX - dy * 0.012));
-    velY = dx * 0.012; velX = -dy * 0.012; velPanX = 0; velPanY = 0;
+    const rdx = dx * 0.007 * ease, rdy = dy * 0.007 * ease;
+    rotY += rdx;
+    rotX = Math.max(-1.4, Math.min(1.4, rotX - rdy));
+    velY = rdx; velX = -rdy; velPanX = 0; velPanY = 0;
   }
   lastMX = e.clientX; lastMY = e.clientY;
   render();
@@ -426,6 +431,42 @@ if (window.parent) window.parent.postMessage({ type: 'VIEWER_READY' }, '*');
 </script>
 </body>
 </html>`;
+
+app.registerExtension({
+    name: "motionstreamer.exportfbx",
+
+    async nodeCreated(node) {
+        if (node.comfyClass !== "MotionStreamerExportFBX") return;
+
+        const btn = node.addWidget("button", "No File", null, () => {
+            if (!node._fbxDownloadUrl) return;
+            const a = document.createElement("a");
+            a.href = api.apiURL(node._fbxDownloadUrl);
+            a.download = node._fbxFilename || "motion.fbx";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
+        btn.serialize = false;
+        btn.disabled = true;
+        node._fbxDownloadButton = btn;
+
+        const onExecuted = node.onExecuted;
+        node.onExecuted = function(message) {
+            onExecuted?.apply(this, arguments);
+            const text = message?.text?.[0];
+            if (!text) return;
+            const urlMatch = text.match(/href="([^"]+)"/);
+            const nameMatch = text.match(/Download:\s*([^<]+)/);
+            if (urlMatch) {
+                node._fbxDownloadUrl = urlMatch[1];
+                node._fbxFilename = nameMatch ? nameMatch[1].trim() : "motion.fbx";
+                btn.label = `\u{1F4BE} ${node._fbxFilename}`;
+                btn.disabled = false;
+            }
+        };
+    }
+});
 
 app.registerExtension({
     name: "motionstreamer.previewanimation",

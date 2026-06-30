@@ -461,8 +461,18 @@ class MotionStreamerExportFBX:
             except OSError:
                 pass
 
+        fbx_rel = str(fbx_p.relative_to(COMFY_OUTPUT_DIR)).replace("\\", "/")
+        download_url = f"/view?filename={fbx_rel}&type=output"
+        fbx_filename = fbx_p.name
         print(f"[MotionStreamer] Exported FBX: {fbx_p}")
-        return (str(fbx_p),)
+        return {
+            "ui": {
+                "text": [
+                    f'<a href="{download_url}" download="{fbx_filename}">Download: {fbx_filename}</a>'
+                ]
+            },
+            "result": (str(fbx_p),),
+        }
 
 
 NODE_CLASS_MAPPINGS = {
