@@ -257,6 +257,7 @@ class MotionStreamerGenerate:
                 "model": ("MOTIONSTREAMER_MODEL",),
                 "text_encoder": ("MOTIONSTREAMER_TEXT_ENCODER",),
                 "text": ("STRING", {"default": "A person is walking forward.", "multiline": True}),
+                "negative_text": ("STRING", {"default": "", "multiline": True}),
                 "seed": ("INT", {"default": 123, "min": 0, "max": 0x7FFFFFFF}),
             },
             "optional": {
@@ -271,7 +272,7 @@ class MotionStreamerGenerate:
     FUNCTION = "generate"
     CATEGORY = "MotionStreamer"
 
-    def generate(self, model, text_encoder, text, seed,
+    def generate(self, model, text_encoder, text, negative_text, seed,
                  duration=10.0, cfg_scale=4.0, temperature=1.0):
         torch.manual_seed(seed)
         if model.device.type == "cuda":
@@ -284,6 +285,7 @@ class MotionStreamerGenerate:
         with torch.no_grad():
             motion_latents = model.transformer.sample_for_eval_CFG_inference(
                 text=text,
+                negative_text=negative_text,
                 length=length,
                 tokenizer=text_encoder,
                 device=model.device,

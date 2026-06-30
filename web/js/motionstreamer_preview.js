@@ -433,6 +433,29 @@ if (window.parent) window.parent.postMessage({ type: 'VIEWER_READY' }, '*');
 </html>`;
 
 app.registerExtension({
+    name: "motionstreamer.generate",
+
+    async beforeRegisterNodeDef(nodeType, nodeData) {
+        if (nodeData.name !== "MotionStreamerGenerate") return;
+
+        const onNodeCreated = nodeType.prototype.onNodeCreated;
+        nodeType.prototype.onNodeCreated = function() {
+            const r = onNodeCreated?.apply(this, arguments);
+            const applyHeights = () => {
+                for (const name of ["text", "negative_text"]) {
+                    const w = this.widgets?.find(w => w.name === name);
+                    if (w) w.computeSize = (width) => [width, 58];
+                }
+                this.setSize(this.computeSize());
+                this.setDirtyCanvas(true, true);
+            };
+            requestAnimationFrame(applyHeights);
+            return r;
+        };
+    }
+});
+
+app.registerExtension({
     name: "motionstreamer.exportfbx",
 
     async nodeCreated(node) {

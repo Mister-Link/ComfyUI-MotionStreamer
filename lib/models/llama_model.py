@@ -161,14 +161,13 @@ class LLaMAHF(nn.Module):
     
     
     # For inference, can stop sampling when the distance between the current token and the reference end token is less than the threshold.
-    def sample_for_eval_CFG_inference(self, text, length=312, tokenizer=None, device=torch.device('cuda'), unit_length=4, reference_end_latent=None, threshold=0.1, cfg=4.0, temperature=1.0):
+    def sample_for_eval_CFG_inference(self, text, length=312, tokenizer=None, device=torch.device('cuda'), unit_length=4, reference_end_latent=None, threshold=0.1, cfg=4.0, temperature=1.0, negative_text=''):
         max_token_len = length // unit_length
         feat_text = torch.from_numpy(tokenizer.encode(text)).float()
         feat_text = feat_text.to(device)
 
         # CFG inference
-        empty_text = ''
-        empty_feat_text = torch.from_numpy(tokenizer.encode(empty_text)).float()   # torch.Size([32, 768])
+        empty_feat_text = torch.from_numpy(tokenizer.encode(negative_text)).float()
         empty_feat_text = empty_feat_text.unsqueeze(0)
         empty_feat_text = empty_feat_text.to(device)
         
