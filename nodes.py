@@ -351,8 +351,8 @@ class MotionStreamerPreviewAnimation:
     def INPUT_TYPES(cls):
         return {"required": {"motion": ("MOTIONSTREAMER_DATA",)}}
 
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("motion_json",)
+    RETURN_TYPES = ()
+    RETURN_NAMES = ()
     FUNCTION = "preview"
     CATEGORY = "MotionStreamer"
     OUTPUT_NODE = True
@@ -368,7 +368,7 @@ class MotionStreamerPreviewAnimation:
             "bones": self.BONES,
         }
         motion_json = json.dumps(data)
-        return {"ui": {"motion_data": [motion_json]}, "result": (motion_json,)}
+        return {"ui": {"motion_data": [motion_json]}, "result": ()}
 
 
 ASSETS_DIR = CURRENT_DIR / "assets"

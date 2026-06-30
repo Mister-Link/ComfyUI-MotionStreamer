@@ -41,6 +41,10 @@ let dragging = false, lastMX = 0, lastMY = 0, dragIsPan = false;
 let panX = 0, panY = 0;
 let norm = null;
 let followMode = false;
+let gizmoHovered = false;
+let lerpAnimId = null;
+let lerpFromY = 0, lerpFromX = 0, lerpToY = 0, lerpToX = 0, lerpStartTime = null;
+const LERP_DUR = 350;
 
 function resize() {
   canvas.width = canvas.clientWidth || 512;
@@ -73,19 +77,23 @@ function drawGrid() {
     gcx = root[0]; gcz = root[2];
   }
   const step = 0.3 / scale;
-  const n = 7;
-  const half = n * step;
+  const nZ = 7;
+  const nX = nZ * 3;
+  const halfZ = nZ * step;
+  const halfX = nX * step;
   ctx.save();
   ctx.strokeStyle = '#252840';
   ctx.lineWidth = 0.8;
-  for (let i = -n; i <= n; i++) {
+  for (let i = -nX; i <= nX; i++) {
     const x = gcx + i * step;
-    const z = gcz + i * step;
-    const [ax0, ay0] = project(x, floorY, gcz - half);
-    const [ax1, ay1] = project(x, floorY, gcz + half);
+    const [ax0, ay0] = project(x, floorY, gcz - halfZ);
+    const [ax1, ay1] = project(x, floorY, gcz + halfZ);
     ctx.beginPath(); ctx.moveTo(ax0, ay0); ctx.lineTo(ax1, ay1); ctx.stroke();
-    const [bx0, by0] = project(gcx - half, floorY, z);
-    const [bx1, by1] = project(gcx + half, floorY, z);
+  }
+  for (let i = -nZ; i <= nZ; i++) {
+    const z = gcz + i * step;
+    const [bx0, by0] = project(gcx - halfX, floorY, z);
+    const [bx1, by1] = project(gcx + halfX, floorY, z);
     ctx.beginPath(); ctx.moveTo(bx0, by0); ctx.lineTo(bx1, by1); ctx.stroke();
   }
   ctx.restore();
@@ -130,30 +138,145 @@ function project(x, y, z) {
   return [rx*s + canvas.width/2 + panX, -ry*s + canvas.height/2 + panY];
 }
 
-function render() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  if (!xyz || !norm) return;
-  drawGrid();
-  const f = Math.floor(currentFrame) % numFrames;
-  const pts = [];
-  for (let j = 0; j < numJoints; j++) pts.push(project(...getJoint(f, j)));
+const GIZMO_ARM = 36;
+const GIZMO_R = 50;
+const GIZMO_AXES = [
+  { id: 'X',  vec: [ 1, 0, 0], color: '#e05555', snapY: -Math.PI/2, snapX: 0 },
+  { id: 'Y',  vec: [ 0, 1, 0], color: '#55c055', snapY: 0, snapX: -Math.PI/2 },
+  { id: 'Z',  vec: [ 0, 0, 1], color: '#5599e0', snapY: 0, snapX: 0 },
+  { id: '-X', vec: [-1, 0, 0], color: '#703030', snapY:  Math.PI/2, snapX: 0 },
+  { id: '-Y', vec: [ 0,-1, 0], color: '#306030', snapY: 0, snapX:  Math.PI/2 },
+  { id: '-Z', vec: [ 0, 0,-1], color: '#304870', snapY: Math.PI, snapX: 0 },
+];
 
-  ctx.lineWidth = 2.5;
-  ctx.strokeStyle = '#4a70cc';
-  for (const [a, b] of bones) {
-    if (a >= pts.length || b >= pts.length) continue;
+function gizmoCenter() {
+  return [canvas.width - GIZMO_R - 10, GIZMO_R + 10];
+}
+
+function projectAxisDir(ax, ay, az) {
+  const cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+  const rx = ax*cosY - az*sinY;
+  const rz = ax*sinY + az*cosY;
+  const cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+  const ry = ay*cosX - rz*sinX;
+  const depth = rz*cosX + ay*sinX;
+  return [rx, -ry, depth];
+}
+
+function getGizmoEndpoints() {
+  const [gx, gy] = gizmoCenter();
+  return GIZMO_AXES.map(axis => {
+    const [sx, sy, depth] = projectAxisDir(...axis.vec);
+    return { ...axis, ex: gx + sx*GIZMO_ARM, ey: gy + sy*GIZMO_ARM, depth };
+  });
+}
+
+function drawGizmo() {
+  const [gx, gy] = gizmoCenter();
+  const eps = getGizmoEndpoints().sort((a, b) => a.depth - b.depth);
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(gx, gy, GIZMO_R, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(22,24,42,0.45)';
+  ctx.fill();
+  for (const e of eps) {
+    const isPos = !e.id.startsWith('-');
+    ctx.globalAlpha = isPos ? 0.85 : 0.4;
     ctx.beginPath();
-    ctx.moveTo(pts[a][0], pts[a][1]);
-    ctx.lineTo(pts[b][0], pts[b][1]);
+    ctx.moveTo(gx, gy);
+    ctx.lineTo(e.ex, e.ey);
+    ctx.strokeStyle = e.color;
+    ctx.lineWidth = isPos ? 2 : 1.5;
     ctx.stroke();
   }
-
-  for (const [sx, sy] of pts) {
+  for (const e of eps) {
+    const isPos = !e.id.startsWith('-');
+    ctx.globalAlpha = isPos ? 1.0 : 0.55;
     ctx.beginPath();
-    ctx.arc(sx, sy, 3.5, 0, Math.PI*2);
-    ctx.fillStyle = '#ccd';
+    ctx.arc(e.ex, e.ey, isPos ? 10 : 6, 0, Math.PI*2);
+    ctx.fillStyle = e.color;
     ctx.fill();
+    if (isPos) {
+      ctx.globalAlpha = 1.0;
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 8px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(e.id, e.ex, e.ey);
+    }
   }
+  ctx.globalAlpha = 1.0;
+  ctx.beginPath();
+  ctx.arc(gx, gy, 4, 0, Math.PI*2);
+  ctx.fillStyle = '#aaaaaa';
+  ctx.fill();
+  ctx.restore();
+}
+
+function gizmoHitTest(mx, my) {
+  const eps = getGizmoEndpoints();
+  for (const e of eps) {
+    if (Math.hypot(mx - e.ex, my - e.ey) <= (!e.id.startsWith('-') ? 12 : 8)) return e;
+  }
+  return null;
+}
+
+function angleMatch(a, b) {
+  let d = Math.abs(a - b) % (2 * Math.PI);
+  if (d > Math.PI) d = 2 * Math.PI - d;
+  return d < 0.05;
+}
+
+function lerpAngle(a, b, t) {
+  let diff = b - a;
+  while (diff >  Math.PI) diff -= 2 * Math.PI;
+  while (diff < -Math.PI) diff += 2 * Math.PI;
+  return a + diff * t;
+}
+
+function animateLerp(ts) {
+  if (!lerpStartTime) lerpStartTime = ts;
+  const t = Math.min(1, (ts - lerpStartTime) / LERP_DUR);
+  const ease = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+  rotY = lerpAngle(lerpFromY, lerpToY, ease);
+  rotX = lerpFromX + (lerpToX - lerpFromX) * ease;
+  render();
+  if (t < 1) lerpAnimId = requestAnimationFrame(animateLerp);
+  else lerpAnimId = null;
+}
+
+function startLerp(toY, toX) {
+  if (lerpAnimId) cancelAnimationFrame(lerpAnimId);
+  lerpFromY = rotY; lerpFromX = rotX;
+  lerpToY = toY; lerpToX = toX;
+  lerpStartTime = null;
+  lerpAnimId = requestAnimationFrame(animateLerp);
+}
+
+function render() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (xyz && norm) {
+    drawGrid();
+    const f = Math.floor(currentFrame) % numFrames;
+    const pts = [];
+    for (let j = 0; j < numJoints; j++) pts.push(project(...getJoint(f, j)));
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#4a70cc';
+    for (const [a, b] of bones) {
+      if (a >= pts.length || b >= pts.length) continue;
+      ctx.beginPath();
+      ctx.moveTo(pts[a][0], pts[a][1]);
+      ctx.lineTo(pts[b][0], pts[b][1]);
+      ctx.stroke();
+    }
+    for (const [sx, sy] of pts) {
+      ctx.beginPath();
+      ctx.arc(sx, sy, 3.5, 0, Math.PI*2);
+      ctx.fillStyle = '#ccd';
+      ctx.fill();
+    }
+  }
+  drawGizmo();
 }
 
 function step(ts) {
@@ -195,12 +318,42 @@ scrubber.addEventListener('input', () => {
 });
 
 canvas.addEventListener('mousedown', e => {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / (rect.width || 1);
+  const scaleY = canvas.height / (rect.height || 1);
+  const mx = (e.clientX - rect.left) * scaleX;
+  const my = (e.clientY - rect.top) * scaleY;
+  const hit = gizmoHitTest(mx, my);
+  if (hit) {
+    if (angleMatch(rotY, hit.snapY) && angleMatch(rotX, hit.snapX)) {
+      const oppId = hit.id.startsWith('-') ? hit.id.slice(1) : '-' + hit.id;
+      const opp = GIZMO_AXES.find(a => a.id === oppId);
+      startLerp(opp.snapY, opp.snapX);
+    } else {
+      rotY = hit.snapY;
+      rotX = hit.snapX;
+      render();
+    }
+    return;
+  }
   dragging = true; dragIsPan = e.shiftKey;
   lastMX = e.clientX; lastMY = e.clientY;
   canvas.classList.add('dragging');
 });
 window.addEventListener('mousemove', e => {
-  if (!dragging) return;
+  if (!dragging) {
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width && rect.height) {
+      const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+      const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+      const nowHovered = !!gizmoHitTest(mx, my);
+      if (nowHovered !== gizmoHovered) {
+        gizmoHovered = nowHovered;
+        canvas.style.cursor = gizmoHovered ? 'pointer' : '';
+      }
+    }
+    return;
+  }
   const dx = e.clientX - lastMX, dy = e.clientY - lastMY;
   if (dragIsPan) {
     panX += dx; panY += dy;
@@ -230,7 +383,7 @@ window.addEventListener('message', e => {
     panX = 0; panY = 0;
     norm = computeNorm();
     autoFrame();
-    setFollow(false);
+    setFollow(followMode);
     scrubber.max = numFrames - 1;
     scrubber.value = 0;
     frameLabel.textContent = '0 / ' + numFrames;
