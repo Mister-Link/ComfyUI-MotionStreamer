@@ -18,7 +18,7 @@ const VIEWER_HTML = `<!DOCTYPE html>
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="status">Waiting for motion data…</div>
+<div id="status"></div>
 <div id="controls">
   <button id="btnPlay">▶ Play</button>
   <button id="btnFollow">⊙ Stay</button>
@@ -39,7 +39,7 @@ let currentFrame = 0, playing = false, animId = null, lastTime = 0;
 let rotY = 0.4, rotX = -0.15, zoom = 1.0;
 let dragging = false, lastMX = 0, lastMY = 0, dragIsPan = false;
 let panX = 0, panY = 0;
-let norm = null;
+let norm = { cx: 0, cy: 0, cz: 0, scale: 1, floorY: 0 };
 let followMode = false;
 let gizmoHovered = false;
 let lerpAnimId = null;
@@ -69,7 +69,6 @@ function computeNorm() {
 }
 
 function drawGrid() {
-  if (!norm) return;
   const { floorY, scale, cx: baseCX, cz: baseCZ } = norm;
   let gcx = baseCX, gcz = baseCZ;
   if (followMode && numFrames > 0) {
@@ -255,8 +254,8 @@ function startLerp(toY, toX) {
 
 function render() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  if (xyz && norm) {
-    drawGrid();
+  drawGrid();
+  if (xyz) {
     const f = Math.floor(currentFrame) % numFrames;
     const pts = [];
     for (let j = 0; j < numJoints; j++) pts.push(project(...getJoint(f, j)));
