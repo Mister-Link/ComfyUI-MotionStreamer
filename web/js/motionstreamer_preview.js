@@ -441,10 +441,14 @@ app.registerExtension({
         const onNodeCreated = nodeType.prototype.onNodeCreated;
         nodeType.prototype.onNodeCreated = function() {
             const r = onNodeCreated?.apply(this, arguments);
+            const LABELS = { text: "Positive prompt", negative_text: "Negative prompt" };
             const applyHeights = () => {
-                for (const name of ["text", "negative_text"]) {
+                for (const [name, placeholder] of Object.entries(LABELS)) {
                     const w = this.widgets?.find(w => w.name === name);
-                    if (w) w.computeSize = (width) => [width, 58];
+                    if (w) {
+                        w.computeSize = (width) => [width, 58];
+                        if (w.inputEl) w.inputEl.placeholder = placeholder;
+                    }
                 }
                 this.setSize(this.computeSize());
                 this.setDirtyCanvas(true, true);

@@ -261,9 +261,12 @@ class MotionStreamerGenerate:
                 "seed": ("INT", {"default": 123, "min": 0, "max": 0x7FFFFFFF}),
             },
             "optional": {
-                "duration": ("FLOAT", {"default": 10.0, "min": 1.0, "max": 30.0, "step": 0.5}),
-                "cfg_scale": ("FLOAT", {"default": 4.0, "min": 1.0, "max": 10.0, "step": 0.1}),
-                "temperature": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 2.0, "step": 0.1}),
+                "duration": ("FLOAT", {"default": 10.0, "min": 1.0, "max": 30.0, "step": 0.5,
+                    "tooltip": "Length of the generated animation in seconds."}),
+                "cfg_scale": ("FLOAT", {"default": 4.0, "min": 1.0, "max": 10.0, "step": 0.1,
+                    "tooltip": "Classifier-free guidance scale. Steers the generation toward the positive prompt and away from the negative. Higher = follows the prompt more strictly but less varied. Lower = more free/creative but may stray from the text."}),
+                "temperature": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 2.0, "step": 0.1,
+                    "tooltip": "Sampling temperature. Controls how spread out the probability distribution is when picking each motion token — independent of prompt direction. Lower = safer, more predictable motion. Higher = more varied and experimental, but can become incoherent."}),
             },
         }
 
