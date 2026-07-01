@@ -433,7 +433,7 @@ class MotionStreamerExportFBX:
         output_root = COMFY_OUTPUT_DIR / output_dir
         output_root.mkdir(parents=True, exist_ok=True)
 
-        stem = f"{_sanitize_filename(filename_prefix)}_{_timestamp()}"
+        stem = f"{_sanitize_filename(filename_prefix)}{time.strftime('%m%d%y%H%M', time.localtime())}"
         fbx_p = output_root / f"{stem}.fbx"
 
         motion_for_export = getattr(motion, "motion_272_denorm", None)
