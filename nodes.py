@@ -466,9 +466,9 @@ class MotionStreamerExportFBX:
             except OSError:
                 pass
 
-        fbx_rel = str(fbx_p.relative_to(COMFY_OUTPUT_DIR)).replace("\\", "/")
-        download_url = f"/view?filename={fbx_rel}&type=output"
         fbx_filename = fbx_p.name
+        fbx_subfolder = str(fbx_p.parent.relative_to(COMFY_OUTPUT_DIR)).replace("\\", "/")
+        download_url = f"/view?filename={fbx_filename}&subfolder={fbx_subfolder}&type=output"
         print(f"[MotionStreamer] Exported FBX: {fbx_p}")
         return {
             "ui": {
