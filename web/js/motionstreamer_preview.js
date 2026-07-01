@@ -80,27 +80,23 @@ function drawGrid() {
     gcx = root[0]; gcz = root[2];
   }
   const step = 0.3 / scale;
-  const nShort = 7;
-  const nLong = nShort * 3;
-  const halfShort = nShort * step;
-  const halfLong = nLong * step;
+  const nZ = 7;
+  const nX = nZ * 3;
+  const halfZ = nZ * step;
+  const halfX = nX * step;
   ctx.save();
   ctx.strokeStyle = '#252840';
   ctx.lineWidth = 0.8;
-  // Lines along Z: central band extends full length, outer arms stay short
-  for (let i = -nLong; i <= nLong; i++) {
+  for (let i = -nX; i <= nX; i++) {
     const x = gcx + i * step;
-    const ext = Math.abs(i) <= nShort ? halfLong : halfShort;
-    const [ax0, ay0] = project(x, floorY, gcz - ext);
-    const [ax1, ay1] = project(x, floorY, gcz + ext);
+    const [ax0, ay0] = project(x, floorY, gcz - halfZ);
+    const [ax1, ay1] = project(x, floorY, gcz + halfZ);
     ctx.beginPath(); ctx.moveTo(ax0, ay0); ctx.lineTo(ax1, ay1); ctx.stroke();
   }
-  // Lines along X: central band extends full length, outer arms stay short
-  for (let i = -nLong; i <= nLong; i++) {
+  for (let i = -nZ; i <= nZ; i++) {
     const z = gcz + i * step;
-    const ext = Math.abs(i) <= nShort ? halfLong : halfShort;
-    const [bx0, by0] = project(gcx - ext, floorY, z);
-    const [bx1, by1] = project(gcx + ext, floorY, z);
+    const [bx0, by0] = project(gcx - halfX, floorY, z);
+    const [bx1, by1] = project(gcx + halfX, floorY, z);
     ctx.beginPath(); ctx.moveTo(bx0, by0); ctx.lineTo(bx1, by1); ctx.stroke();
   }
   ctx.restore();
